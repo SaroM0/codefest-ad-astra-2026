@@ -1,0 +1,40 @@
+[project]
+name = "ad-astra"
+version = "2.0.0"
+description = "Pipeline RAG sobre el CORPUS CODEFEST AD ASTRA 2026"
+# El python3 del sistema es 3.14 y aún no hay wheels estables de PyMuPDF/openpyxl para
+# esa versión. El proyecto se fija a 3.11.
+requires-python = ">=3.11,<3.13"
+
+# Las dependencias viven aquí, no en el Makefile: `uv pip install -e .` tiene que bastar.
+dependencies = [
+    "pydantic>=2",
+    "pymupdf",          # inspección de PDF, render para OCR, ruta de PDF etiquetado
+    "openpyxl",         # índice maestro y gold set (.xlsx)
+    "lxml",
+    "defusedxml",       # XML de fuente no confiable
+    "pillow",           # imágenes embebidas para el OCR
+    "rapidfuzz",        # catalog join y contrastes por texto
+    "mapbox-vector-tile",  # los .pbf de INPE
+    "numpy",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+# OCR: sin GPU no hay ventaja en Paddle nativo, así que RapidOCR (ONNX en CPU) es el
+# motor por defecto y se instala sólo con pip, sin permisos de administrador.
+ocr = ["rapidocr-onnxruntime"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pyright]
+extraPaths = ["src"]
+
+[tool.ruff]
+line-length = 95
+src = ["src", "scripts"]

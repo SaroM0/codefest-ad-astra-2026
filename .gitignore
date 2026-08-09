@@ -1,0 +1,70 @@
+# ══════════════════════════════════════════════════════════════════════════════════
+# Datos de entrada — 3 GB, se distribuyen aparte
+# ══════════════════════════════════════════════════════════════════════════════════
+# El corpus es el dataset del reto, no código. Se coloca en la raíz del repo tal cual
+# viene, o se apunta a otra ruta con la variable de entorno CODEFEST_CORPUS.
+/CORPUS CODEFEST AD ASTRA 2026/
+
+# ══════════════════════════════════════════════════════════════════════════════════
+# Salidas — todo lo de artifacts/ es DERIVADO y reproducible con `make ingest`
+# ══════════════════════════════════════════════════════════════════════════════════
+# ~550 MB por corrida. Nada aquí es fuente: si algo de artifacts/ no se puede
+# regenerar desde el corpus, es un bug del pipeline, no un fichero que versionar.
+/artifacts/
+*.log
+
+# ══════════════════════════════════════════════════════════════════════════════════
+# Entorno
+# ══════════════════════════════════════════════════════════════════════════════════
+.venv/
+venv/
+env/
+uv.lock
+
+# ══════════════════════════════════════════════════════════════════════════════════
+# Python
+# ══════════════════════════════════════════════════════════════════════════════════
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ══════════════════════════════════════════════════════════════════════════════════
+# Modelos y vectores (etapas 3 y 4) — pesados y regenerables
+# ══════════════════════════════════════════════════════════════════════════════════
+*.onnx
+*.pt
+*.bin
+*.safetensors
+*.faiss
+*.npy
+*.npz
+/models/
+
+# ══════════════════════════════════════════════════════════════════════════════════
+# Secretos
+# ══════════════════════════════════════════════════════════════════════════════════
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ══════════════════════════════════════════════════════════════════════════════════
+# Sistema operativo y editores
+# ══════════════════════════════════════════════════════════════════════════════════
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/*
+!.vscode/settings.json

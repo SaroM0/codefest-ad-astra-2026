@@ -1,0 +1,74 @@
+{
+  "_note": "Transcripciones manuales de las 3 figuras de datos de SWF Counterspace 2026. Esta información NO existe en ningún formato textual del corpus y es relevante para q018, q024 y q026. Se transcribe a mano porque el OCR de una matriz semáforo devuelve las etiquetas de fila y columna SIN la relación que las une (el valor de cada celda es una forma de color, no texto): sería peor que no hacer nada, porque parecería contenido. extraction_method='manual'.",
+
+  "SWF_69caf750b6a0fce65862de8a-stoplight-chart-execsummary-web.jpg": {
+    "figure": "2026 Global Assessment (stoplight chart, resumen ejecutivo)",
+    "note": "Matriz capacidad x pais. Leyenda: None (circulo verde) | Some (cuadrado amarillo) | Significant (triangulo rojo) | Uncertain (?)",
+    "text": "2026 Global Assessment — Evaluacion global de capacidades contraespaciales por pais (SWF Global Counterspace Capabilities Report 2026). Leyenda: None = ninguna capacidad; Some = alguna capacidad; Significant = capacidad significativa; Uncertain = incierto.\nLEO Co-Orbital: US Some; Russia Significant; China Some; India None; Australia None; France Some; Germany None; Iran None; Israel None; Japan None; North Korea None; South Korea None; UK None.\nMEO/GEO Co-Orbital: US Some; Russia Some; China Some; India None; Australia None; France Some; Germany None; Iran None; Israel None; Japan None; North Korea None; South Korea None; UK None.\nLEO Direct-Ascent: US Significant; Russia Significant; China Significant; India Some; Australia None; France None; Germany None; Iran None; Israel Some; Japan None; North Korea None; South Korea None; UK None.\nMEO/GEO Direct-Ascent: US Uncertain; Russia Uncertain; China Some; India None; Australia None; France None; Germany None; Iran None; Israel None; Japan None; North Korea None; South Korea None; UK None.\nDirected Energy: US Significant; Russia Significant; China Some; India None; Australia None; France Some; Germany None; Iran None; Israel None; Japan None; North Korea None; South Korea None; UK None.\nElectronic Warfare: US Significant; Russia Significant; China Significant; India Some; Australia Some; France Some; Germany None; Iran Significant; Israel Significant; Japan Some; North Korea Significant; South Korea None; UK None.\nSpace Situational Awareness: US Significant; Russia Significant; China Significant; India Some; Australia Some; France Some; Germany Some; Iran Some; Israel Some; Japan Some; North Korea Some; South Korea Some; UK Some.",
+    "structured_data": {
+      "title": "2026 Global Assessment",
+      "source_report": "SWF Global Counterspace Capabilities Report 2026 (executive summary)",
+      "legend": {
+        "green_circle": "None",
+        "yellow_square": "Some",
+        "red_triangle": "Significant",
+        "question_mark": "Uncertain"
+      },
+      "countries": ["US", "Russia", "China", "India", "Australia", "France", "Germany", "Iran", "Israel", "Japan", "North Korea", "South Korea", "UK"],
+      "capabilities": ["LEO Co-Orbital", "MEO/GEO Co-Orbital", "LEO Direct-Ascent", "MEO/GEO Direct-Ascent", "Directed Energy", "Electronic Warfare", "Space Situational Awareness"],
+      "matrix": {
+        "LEO Co-Orbital":            {"US": "Some",        "Russia": "Significant", "China": "Some",        "India": "None", "Australia": "None", "France": "Some", "Germany": "None", "Iran": "None",        "Israel": "None",        "Japan": "None", "North Korea": "None",        "South Korea": "None", "UK": "None"},
+        "MEO/GEO Co-Orbital":        {"US": "Some",        "Russia": "Some",        "China": "Some",        "India": "None", "Australia": "None", "France": "Some", "Germany": "None", "Iran": "None",        "Israel": "None",        "Japan": "None", "North Korea": "None",        "South Korea": "None", "UK": "None"},
+        "LEO Direct-Ascent":         {"US": "Significant", "Russia": "Significant", "China": "Significant", "India": "Some", "Australia": "None", "France": "None", "Germany": "None", "Iran": "None",        "Israel": "Some",        "Japan": "None", "North Korea": "None",        "South Korea": "None", "UK": "None"},
+        "MEO/GEO Direct-Ascent":     {"US": "Uncertain",   "Russia": "Uncertain",   "China": "Some",        "India": "None", "Australia": "None", "France": "None", "Germany": "None", "Iran": "None",        "Israel": "None",        "Japan": "None", "North Korea": "None",        "South Korea": "None", "UK": "None"},
+        "Directed Energy":           {"US": "Significant", "Russia": "Significant", "China": "Some",        "India": "None", "Australia": "None", "France": "Some", "Germany": "None", "Iran": "None",        "Israel": "None",        "Japan": "None", "North Korea": "None",        "South Korea": "None", "UK": "None"},
+        "Electronic Warfare":        {"US": "Significant", "Russia": "Significant", "China": "Significant", "India": "Some", "Australia": "Some", "France": "Some", "Germany": "None", "Iran": "Significant", "Israel": "Significant", "Japan": "Some", "North Korea": "Significant", "South Korea": "None", "UK": "None"},
+        "Space Situational Awareness": {"US": "Significant", "Russia": "Significant", "China": "Significant", "India": "Some", "Australia": "Some", "France": "Some", "Germany": "Some", "Iran": "Some",     "Israel": "Some",        "Japan": "Some", "North Korea": "Some",        "South Korea": "Some", "UK": "Some"}
+      }
+    }
+  },
+
+  "SWF_6a063f3ccaf9f32a290430b9-asat-by-country-2026.jpg": {
+    "figure": "ASAT Tests by Country (2026)",
+    "note": "Grafico de barras horizontales. Valores leidos del eje (escala 0-40).",
+    "text": "ASAT Tests by Country (2026) — Numero de pruebas antisatelite por pais: Russia 34; USA 33; China 13; India 2.",
+    "structured_data": {
+      "title": "ASAT Tests by Country (2026)",
+      "source_report": "SWF Global Counterspace Capabilities Report 2026",
+      "unit": "number of ASAT tests",
+      "axis_max": 40,
+      "values": {"Russia": 34, "USA": 33, "China": 13, "India": 2},
+      "reading_precision": "aproximado, leido del eje del grafico"
+    }
+  },
+
+  "SWF_69cac182eba666b43b38e5dd-table-5-1-web.jpg": {
+    "figure": "Table 5-1 — Orbital Debris Created by ASAT Tests in Space",
+    "note": "Tabla renderizada como imagen. Totales del pie: 6904 tracked debris, 2773 still on orbit.",
+    "text": "Table 5-1 — Orbital Debris Created by ASAT Tests in Space. Columnas: Date, Country, Interceptor, Interceptor Type, Target, Intercept Altitude, Tracked Debris, Debris Still on Orbit, Total Debris Lifespan. Filas: Oct. 20 1968, Russia, Cosmos 249 y Cosmos 252 (IS), Co-orbital, Cosmos 248, altitud no indicada, 252 restos rastreados, 71 aun en orbita, 57.4 anos. Oct. 23 1970, Russia, Cosmos 374 y Cosmos 375 (IS), Co-orbital, Cosmos 373, 147 restos, 33 en orbita, 55.4 anos. Feb. 25 1971, Russia, Cosmos 397 (IS), Co-orbital, Cosmos 394, 117 restos, 43 en orbita, 55 anos. Dec. 3 1971, Russia, Cosmos 462 (IS), Co-orbital, Cosmos 459, 28 restos, 0 en orbita, 3.3 anos. Dec. 17 1976, Russia, Cosmos 886 (IS), Co-orbital, Cosmos 880, 127 restos, 54 en orbita, 49.2 anos. Dec. 21 1977, Russia, Cosmos 970 (IS), Co-orbital, Cosmos 967, 121 restos, 115 en orbita, 48.2 anos. Apr. 18 1980, Russia, Cosmos 1174 (IS-M), Co-orbital, Cosmos 1171, 47 restos, 4 en orbita, 45.9 anos. Jun. 18 1982, Russia, Cosmos 1379 (IS-M), Co-orbital, Cosmos 1375, 62 restos, 59 en orbita, 43.7 anos. Sep. 13 1985, US, ASM-135, Direct Ascent, Solwind, 530 km, 285 restos, 0 en orbita, 18.7 anos. Sep. 5 1986, US, Delta 180 PAS, Co-orbital, Delta 2 R/B, 18 restos, 0 en orbita, menos de 1 ano. Dec. 26 1994, Russia, Naryad-V, Co-orbital, objetivo desconocido, 26 restos, 22 en orbita, 31.2 anos. Jan. 11 2007, China, SC-19, Direct Ascent, FY-1C, 880 km, 3532 restos, 2351 en orbita, 19.1 anos. Feb. 20 2008, US, SM-3, Direct Ascent, USA 193, 220 km, 175 restos, 0 en orbita, 1.7 anos. Mar. 27 2019, India, PDV-MK II, Direct Ascent, Microsat-R, 300 km, 130 restos, 0 en orbita, 3.2 anos. Ago.-Dic. 2019, Russia, Cosmos 2535, Co-orbital, Cosmos 2536, 30 restos, 16 en orbita, 6.5 anos. Nov. 15 2021, Russia, Nudol, Direct Ascent, Cosmos 1408, 470 km, 1807 restos, 5 en orbita, 4.3 anos. Total: 6904 restos rastreados, 2773 aun en orbita.",
+    "structured_data": {
+      "title": "Table 5-1 — Orbital Debris Created by ASAT Tests in Space",
+      "source_report": "SWF Global Counterspace Capabilities Report 2026",
+      "columns": ["date", "country", "interceptor", "interceptor_type", "target", "intercept_altitude", "tracked_debris", "debris_still_on_orbit", "total_debris_lifespan"],
+      "rows": [
+        {"date": "1968-10-20", "country": "Russia", "interceptor": "Cosmos 249, Cosmos 252 (IS)", "interceptor_type": "Co-orbital", "target": "Cosmos 248", "intercept_altitude": null, "tracked_debris": 252, "debris_still_on_orbit": 71, "total_debris_lifespan": "57.4 years"},
+        {"date": "1970-10-23", "country": "Russia", "interceptor": "Cosmos 374, Cosmos 375 (IS)", "interceptor_type": "Co-orbital", "target": "Cosmos 373", "intercept_altitude": null, "tracked_debris": 147, "debris_still_on_orbit": 33, "total_debris_lifespan": "55.4 years"},
+        {"date": "1971-02-25", "country": "Russia", "interceptor": "Cosmos 397 (IS)", "interceptor_type": "Co-orbital", "target": "Cosmos 394", "intercept_altitude": null, "tracked_debris": 117, "debris_still_on_orbit": 43, "total_debris_lifespan": "55 years"},
+        {"date": "1971-12-03", "country": "Russia", "interceptor": "Cosmos 462 (IS)", "interceptor_type": "Co-orbital", "target": "Cosmos 459", "intercept_altitude": null, "tracked_debris": 28, "debris_still_on_orbit": 0, "total_debris_lifespan": "3.3 years"},
+        {"date": "1976-12-17", "country": "Russia", "interceptor": "Cosmos 886 (IS)", "interceptor_type": "Co-orbital", "target": "Cosmos 880", "intercept_altitude": null, "tracked_debris": 127, "debris_still_on_orbit": 54, "total_debris_lifespan": "49.2 years"},
+        {"date": "1977-12-21", "country": "Russia", "interceptor": "Cosmos 970 (IS)", "interceptor_type": "Co-orbital", "target": "Cosmos 967", "intercept_altitude": null, "tracked_debris": 121, "debris_still_on_orbit": 115, "total_debris_lifespan": "48.2 years"},
+        {"date": "1980-04-18", "country": "Russia", "interceptor": "Cosmos 1174 (IS-M)", "interceptor_type": "Co-orbital", "target": "Cosmos 1171", "intercept_altitude": null, "tracked_debris": 47, "debris_still_on_orbit": 4, "total_debris_lifespan": "45.9 years"},
+        {"date": "1982-06-18", "country": "Russia", "interceptor": "Cosmos 1379 (IS-M)", "interceptor_type": "Co-orbital", "target": "Cosmos 1375", "intercept_altitude": null, "tracked_debris": 62, "debris_still_on_orbit": 59, "total_debris_lifespan": "43.7 years"},
+        {"date": "1985-09-13", "country": "US", "interceptor": "ASM-135", "interceptor_type": "Direct Ascent", "target": "Solwind", "intercept_altitude": "530 km", "tracked_debris": 285, "debris_still_on_orbit": 0, "total_debris_lifespan": "18.7 years"},
+        {"date": "1986-09-05", "country": "US", "interceptor": "Delta 180 PAS", "interceptor_type": "Co-orbital", "target": "Delta 2 R/B", "intercept_altitude": null, "tracked_debris": 18, "debris_still_on_orbit": 0, "total_debris_lifespan": "< 1 year"},
+        {"date": "1994-12-26", "country": "Russia", "interceptor": "Naryad-V", "interceptor_type": "Co-orbital", "target": "Unknown", "intercept_altitude": null, "tracked_debris": 26, "debris_still_on_orbit": 22, "total_debris_lifespan": "31.2 years"},
+        {"date": "2007-01-11", "country": "China", "interceptor": "SC-19", "interceptor_type": "Direct Ascent", "target": "FY-1C", "intercept_altitude": "880 km", "tracked_debris": 3532, "debris_still_on_orbit": 2351, "total_debris_lifespan": "19.1 years"},
+        {"date": "2008-02-20", "country": "US", "interceptor": "SM-3", "interceptor_type": "Direct Ascent", "target": "USA 193", "intercept_altitude": "220 km", "tracked_debris": 175, "debris_still_on_orbit": 0, "total_debris_lifespan": "1.7 years"},
+        {"date": "2019-03-27", "country": "India", "interceptor": "PDV-MK II", "interceptor_type": "Direct Ascent", "target": "Microsat-R", "intercept_altitude": "300 km", "tracked_debris": 130, "debris_still_on_orbit": 0, "total_debris_lifespan": "3.2 years"},
+        {"date": "2019-08/2019-12", "country": "Russia", "interceptor": "Cosmos 2535", "interceptor_type": "Co-orbital", "target": "Cosmos 2536", "intercept_altitude": null, "tracked_debris": 30, "debris_still_on_orbit": 16, "total_debris_lifespan": "6.5 years"},
+        {"date": "2021-11-15", "country": "Russia", "interceptor": "Nudol", "interceptor_type": "Direct Ascent", "target": "Cosmos 1408", "intercept_altitude": "470 km", "tracked_debris": 1807, "debris_still_on_orbit": 5, "total_debris_lifespan": "4.3 years"}
+      ],
+      "totals": {"tracked_debris": 6904, "debris_still_on_orbit": 2773}
+    }
+  }
+}
