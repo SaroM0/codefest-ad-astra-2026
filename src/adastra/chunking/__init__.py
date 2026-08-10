@@ -1,6 +1,6 @@
 """Etapa 2 — CHUNKING.  `CanonicalDocument[]` → `Chunk[]`.
 
-Aún sin implementar.
+En proceso
 
 ENTRADA. No leas `artifacts/ingestion/` a mano; usa el lector compartido, que ya
 resuelve la indirección `blocks_ref` de los documentos grandes:
@@ -27,4 +27,20 @@ Lo que la ingesta ya dejó resuelto y no hay que rehacer:
     de confianza baja no debería pesar igual en el índice.
   · `doc.source` trae idioma, escritura, URL y fecha — metadatos de cita que cada chunk
     debe arrastrar para que retrieval pueda citar.
+
+Este paquete contiene un esqueleto mínimo para fragmentar los documentos
+producidos por la ingesta y escribir `artifacts/chunking/chunks.jsonl`.
+
+Uso rápido (CLI):
+
+    python -m adastra.chunking --artifacts artifacts
+
+El implementa un chunker simple por bloque: cada `ContentBlock` con texto
+se convierte en un chunk. Es un punto de partida para implementar
+estrategias más avanzadas (solapamiento, límites por oración, agregación
+por encabezados, etc.).
 """
+
+from . import processor  # reexport útil para llamadas programáticas
+
+__all__ = ["processor"]
