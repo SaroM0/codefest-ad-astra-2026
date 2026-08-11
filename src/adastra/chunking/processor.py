@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 
 from adastra.core.jsonl import write_jsonl
 from adastra.core.documents import iter_documents, iter_blocks
 from adastra.core.paths import ArtifactPaths
+import json
 
 
 @dataclass
@@ -23,9 +24,9 @@ class Chunk:
     posicion: int
     num_tokens: int
     texto: str
-    language: str
-    published_date: str
-    original_title: str
+    language: Optional[str]
+    published_date: Optional[str]
+    original_title: Optional[str]
 
 
 def _count_tokens(text: str) -> int:
@@ -56,14 +57,10 @@ def iter_chunks(
 ) -> Iterator[Chunk]:
     paths = paths or ArtifactPaths()
     for doc in iter_documents(paths):
-        # extraer campos desde la metadata de la fuente
-        lang = doc.source.language
-        pub_date = doc.source.published_date
-        orig_title = doc.source.original_title
-        if not (lang and pub_date and orig_title):
-            raise ValueError(
-                f"Documento {doc.doc_id} carece de campos obligatorios: language/published_date/original_title"
-            )
+        # aceptar metadatos tal como vengan (pueden ser None)
+        lang = doc.source.language or (doc.metadata or {}).get("language")
+        pub_date = doc.source.published_date or (doc.metadata or {}).get("published_date")
+        orig_title = doc.source.original_title or (doc.metadata or {}).get("title")
         pos = 0
         fuente = doc.source.relative_path or ""
         formato = doc.source.original_format or ""
@@ -155,6 +152,8 @@ def write_chunks(
     report = {"chunks_written": written}
     (encoder_dir / "reports").mkdir(exist_ok=True)
     (encoder_dir / "reports" / "summary.json").write_text(str(report), encoding="utf-8")
+
+    # no generar reporte de metadatos: aceptamos los datos como vienen
     return written
 
 
