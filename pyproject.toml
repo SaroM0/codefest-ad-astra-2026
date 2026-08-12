@@ -24,6 +24,7 @@ dependencies = [
 # OCR: sin GPU no hay ventaja en Paddle nativo, así que RapidOCR (ONNX en CPU) es el
 # motor por defecto y se instala sólo con pip, sin permisos de administrador.
 ocr = ["rapidocr-onnxruntime"]
+dev = ["pytest>=8"]
 
 [build-system]
 requires = ["setuptools>=68"]

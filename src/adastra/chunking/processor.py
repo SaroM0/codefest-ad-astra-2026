@@ -72,6 +72,11 @@ class ChunkRecord(BaseModel):
     extraction_method: str | None = None
     segmentation_confidence: float | None = None
 
+    # Trazabilidad de la estrategia de fragmentación (solución propuesta §4)
+    split_strategy: str = "sentence"  # sentence | paragraph | hard_token_split
+    oversize_reason: str | None = None
+    section_heading: str | None = None
+
 
 @dataclass(frozen=True)
 class ChunkStats:
@@ -81,6 +86,10 @@ class ChunkStats:
     documents_empty: int = 0
     chunks_written: int = 0
     oversize_units: int = 0
+    # Conteo de chunks por estrategia de corte
+    strategy_sentence: int = 0
+    strategy_paragraph: int = 0
+    strategy_hard_token_split: int = 0
 
 
 def _source_label(doc: CanonicalDocument) -> str:
@@ -96,6 +105,39 @@ def _phenomenon_number(value: str) -> int:
 
 def _token_count(text: str) -> int:
     return sum(1 for piece in _WORD_RE.findall(text) if piece.strip())
+
+
+def _split_by_words(text: str, max_words: int) -> list[str]:
+    """Fallback duro: parte el texto en fragmentos de ≤ max_words tokens.
+
+    Garantiza el límite incluso cuando no hay puntuación, tabulaciones
+    ni saltos de párrafo explotables (tablas, listas, URLs, PDFs mal segmentados).
+    """
+    if max_words < 1:
+        raise ValueError("max_words debe ser mayor que cero")
+
+    tokens = _WORD_RE.findall(text)
+    if not tokens:
+        return [text.strip()] if text.strip() else []
+
+    # Reconstruir fragmentos respetando posiciones originales en el texto.
+    # Iteramos sobre el texto original para no perder espacios internos.
+    pieces: list[str] = []
+    chunk_tokens: list[str] = []
+    piece_start = 0
+
+    for match in _WORD_RE.finditer(text):
+        chunk_tokens.append(match.group())
+        if len(chunk_tokens) >= max_words:
+            pieces.append(text[piece_start:match.end()].strip())
+            piece_start = match.end()
+            chunk_tokens = []
+
+    tail = text[piece_start:].strip()
+    if tail:
+        pieces.append(tail)
+
+    return [p for p in pieces if p]
 
 
 def _split_paragraphs(text: str) -> list[str]:
@@ -154,23 +196,33 @@ def _split_sentences(text: str) -> list[str]:
     return sentences
 
 
-def _split_unit(text: str, max_words: int) -> tuple[list[str], int]:
+def _split_unit(
+    text: str, max_words: int
+) -> tuple[list[str], int, str]:
+    """Divide un bloque de texto en unidades de ≤ max_words tokens.
+
+    Devuelve (piezas, contador_sobredimensionados, estrategia_usada).
+    La estrategia es una de: 'paragraph', 'sentence', 'hard_token_split'.
+    """
     paragraphs = _split_paragraphs(text)
     if len(paragraphs) > 1:
         pieces: list[str] = []
         oversize = 0
         for paragraph in paragraphs:
-            sub_pieces, sub_oversize = _split_unit(paragraph, max_words)
+            sub_pieces, sub_oversize, _ = _split_unit(paragraph, max_words)
             pieces.extend(sub_pieces)
             oversize += sub_oversize
-        return pieces, oversize
+        return pieces, oversize, "paragraph"
 
     if _token_count(text) <= max_words:
-        return [text.strip()], 0
+        return [text.strip()], 0, "sentence"
 
     sentences = _split_sentences(text)
     if len(sentences) == 1:
-        return [text.strip()], 1
+        # CORRECCIÓN BUG-1: fallback duro por palabras cuando no hay límite de oración
+        if _token_count(text) > max_words:
+            return _split_by_words(text, max_words), 1, "hard_token_split"
+        return [text.strip()], 0, "sentence"
 
     pieces: list[str] = []
     current: list[str] = []
@@ -184,7 +236,8 @@ def _split_unit(text: str, max_words: int) -> tuple[list[str], int]:
                 pieces.append(" ".join(current).strip())
                 current = []
                 current_words = 0
-            pieces.append(sentence.strip())
+            # CORRECCIÓN BUG-1: oración individual sobredimensionada → corte duro
+            pieces.extend(_split_by_words(sentence, max_words))
             oversize += 1
             continue
 
@@ -200,7 +253,7 @@ def _split_unit(text: str, max_words: int) -> tuple[list[str], int]:
     if current:
         pieces.append(" ".join(current).strip())
 
-    return [piece for piece in pieces if piece], oversize
+    return [piece for piece in pieces if piece], oversize, "sentence"
 
 
 def _iter_blocks_for_chunking(
@@ -224,6 +277,10 @@ def _flush_current(
     current_confidences: list[float],
     doc: CanonicalDocument,
     position: int,
+    *,
+    split_strategy: str = "sentence",
+    section_heading: str | None = None,
+    oversize_reason: str | None = None,
 ) -> ChunkRecord | None:
     if not current_text:
         return None
@@ -234,7 +291,7 @@ def _flush_current(
 
     page_start = min(current_pages) if current_pages else None
     page_end = max(current_pages) if current_pages else None
-    
+
     extraction = current_methods[0] if current_methods else None
     confidence = sum(current_confidences) / len(current_confidences) if current_confidences else None
 
@@ -267,6 +324,9 @@ def _flush_current(
         quality_basis=q_basis,
         extraction_method=extraction,
         segmentation_confidence=confidence,
+        split_strategy=split_strategy,
+        section_heading=section_heading,
+        oversize_reason=oversize_reason,
     )
 
 
@@ -280,6 +340,8 @@ def chunk_documents(
     """Fragmenta un documento canónico en chunks estables y completos."""
 
     del min_words  # reserva explícita para refinamientos futuros
+    if max_words < 1:
+        raise ValueError("max_words debe ser mayor que cero")
 
     root = paths or ArtifactPaths()
     current_text: list[str] = []
@@ -290,10 +352,13 @@ def chunk_documents(
     current_confidences: list[float] = []
     current_words = 0
     position = 0
-    
+    current_strategy = "sentence"
+
     # REAL-05: heading_text/heading_words se resetean tras ser incorporados al primer chunk
     pending_heading: ContentBlock | None = None
     pending_heading_words: int = 0
+    # Texto del heading de sección activo (para section_heading en ChunkRecord)
+    active_section_heading: str | None = None
 
     for block in _iter_blocks_for_chunking(doc, root):
         if block.type == "heading":
@@ -302,7 +367,9 @@ def chunk_documents(
                 chunk = _flush_current(
                     current_text, current_block_ids, current_block_types,
                     current_pages, current_methods, current_confidences,
-                    doc, position
+                    doc, position,
+                    split_strategy=current_strategy,
+                    section_heading=active_section_heading,
                 )
                 if chunk is not None:
                     yield chunk
@@ -314,26 +381,41 @@ def chunk_documents(
                 current_methods.clear()
                 current_confidences.clear()
                 current_words = 0
+                current_strategy = "sentence"
 
             pending_heading = block
             pending_heading_words = _token_count(block.text.strip())
+            active_section_heading = block.text.strip()
             continue
 
         # SEG-01: dividir todos los tipos de bloque por límite de oración
-        units, oversize_units = _split_unit(block.text.strip(), max_words)
+        units, _oversize_count, unit_strategy = _split_unit(block.text.strip(), max_words)
+
+        # Un heading pendiente también consume presupuesto. Si cabe por sí solo, se
+        # parte la primera unidad de contenido para que el primer chunk de sección
+        # nunca exceda el límite. Las unidades posteriores se procesan normalmente.
+        if pending_heading and pending_heading_words < max_words and units:
+            available_for_first_unit = max_words - pending_heading_words
+            first_unit_words = _token_count(units[0])
+            if first_unit_words > available_for_first_unit:
+                units = _split_by_words(units[0], available_for_first_unit) + units[1:]
+                unit_strategy = "hard_token_split"
 
         for unit in units:
             unit_words = _token_count(unit)
 
-            # REAL-03: calcular presupuesto reservando espacio para el heading pendiente
-            heading_budget = pending_heading_words if (pending_heading and not current_text) else 0
+            # REAL-03 / CORRECCIÓN BUG-2: calcular presupuesto incluyendo heading pendiente
+            # para la decisión de flush ANTES de incorporar el heading.
+            heading_budget = pending_heading_words if pending_heading else 0
 
-            # Flush si el chunk actual ya no cabe (sin contar heading pendiente que aún no está)
-            if current_text and current_words + unit_words > max_words:
+            # Flush si el chunk actual ya no cabe, contabilizando el heading pendiente
+            if current_text and current_words + heading_budget + unit_words > max_words:
                 chunk = _flush_current(
                     current_text, current_block_ids, current_block_types,
                     current_pages, current_methods, current_confidences,
-                    doc, position
+                    doc, position,
+                    split_strategy=current_strategy,
+                    section_heading=active_section_heading,
                 )
                 if chunk is not None:
                     yield chunk
@@ -345,8 +427,34 @@ def chunk_documents(
                 current_methods.clear()
                 current_confidences.clear()
                 current_words = 0
-                # REAL-03: recalcular budget tras flush
-                heading_budget = pending_heading_words if pending_heading else 0
+                current_strategy = "sentence"
+
+            # Un heading excepcionalmente largo se emite dividido antes del contenido.
+            # Esto preserva el límite duro sin descartar evidencia estructural.
+            if not current_text and pending_heading and pending_heading_words >= max_words:
+                for heading_piece in _split_by_words(pending_heading.text.strip(), max_words):
+                    heading_chunk = _flush_current(
+                        [heading_piece],
+                        [pending_heading.block_id],
+                        [pending_heading.type],
+                        [pending_heading.page] if pending_heading.page is not None else [],
+                        [pending_heading.extraction_method],
+                        [pending_heading.segmentation_confidence],
+                        doc,
+                        position,
+                        split_strategy="hard_token_split",
+                        section_heading=pending_heading.text.strip(),
+                    )
+                    if heading_chunk is not None:
+                        yield heading_chunk
+                        position += 1
+                pending_heading = None
+                pending_heading_words = 0
+
+            if unit_strategy == "hard_token_split":
+                current_strategy = "hard_token_split"
+            elif unit_strategy == "paragraph" and current_strategy == "sentence":
+                current_strategy = "paragraph"
 
             # REAL-05: incorporar heading SOLO al primer chunk de la sección y resetearlo
             if not current_text and pending_heading:
@@ -385,7 +493,9 @@ def chunk_documents(
     chunk = _flush_current(
         current_text, current_block_ids, current_block_types,
         current_pages, current_methods, current_confidences,
-        doc, position
+        doc, position,
+        split_strategy=current_strategy,
+        section_heading=active_section_heading,
     )
     if chunk is not None:
         yield chunk
@@ -410,7 +520,7 @@ def build_chunks(
     stats = ChunkStats()
     chunks_path = paths.chunking.root / "chunks.jsonl"
     metadata_path = paths.chunking.root / "metadata.jsonl"
-    
+
     # Escribir a archivos temporales y renombrar al final
     chunks_tmp = chunks_path.with_suffix(".tmp")
     metadata_tmp = metadata_path.with_suffix(".tmp")
@@ -432,16 +542,31 @@ def build_chunks(
 
             produced = 0
             oversize_units = 0
+            strategy_sentence = 0
+            strategy_paragraph = 0
+            strategy_hard = 0
             for chunk in chunk_documents(doc, max_words=max_words, paths=paths):
                 oversize_units += int(chunk.num_tokens > max_words)
                 write_line(chunks_handle, chunk)
                 write_line(metadata_handle, chunk)
                 produced += 1
                 stats = replace(stats, chunks_written=stats.chunks_written + 1)
+                if chunk.split_strategy == "hard_token_split":
+                    strategy_hard += 1
+                elif chunk.split_strategy == "paragraph":
+                    strategy_paragraph += 1
+                else:
+                    strategy_sentence += 1
 
             if produced:
                 stats = replace(stats, documents_chunked=stats.documents_chunked + 1)
                 stats = replace(stats, oversize_units=stats.oversize_units + oversize_units)
+                stats = replace(
+                    stats,
+                    strategy_sentence=stats.strategy_sentence + strategy_sentence,
+                    strategy_paragraph=stats.strategy_paragraph + strategy_paragraph,
+                    strategy_hard_token_split=stats.strategy_hard_token_split + strategy_hard,
+                )
             else:
                 stats = replace(stats, documents_empty=stats.documents_empty + 1)
 
@@ -457,6 +582,11 @@ def build_chunks(
         "chunks_written": stats.chunks_written,
         "oversize_units": stats.oversize_units,
         "max_words": max_words,
+        "strategy_counts": {
+            "sentence": stats.strategy_sentence,
+            "paragraph": stats.strategy_paragraph,
+            "hard_token_split": stats.strategy_hard_token_split,
+        },
     }
     (paths.chunking.reports / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
