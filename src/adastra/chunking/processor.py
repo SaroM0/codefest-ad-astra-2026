@@ -41,6 +41,12 @@ _ABBREVIATIONS = {
     "pp.",
 }
 
+# REAL-06: Siglas compuestas con puntos intercalados (U.S., U.K., E.U., etc.)
+_COMPOUND_ABBREV_RE = re.compile(
+    r"\b[A-ZÁÉÍÓÚÜÑ](?:\.[A-ZÁÉÍÓÚÜÑ])+\.$",
+    re.UNICODE,
+)
+
 
 class ChunkRecord(BaseModel):
     """Registro persistido por la etapa 2."""
@@ -98,16 +104,23 @@ def _split_paragraphs(text: str) -> list[str]:
 
 
 def _looks_like_abbreviation(text: str, terminator_index: int) -> bool:
-    window_start = max(0, terminator_index - 12)
-    window = text[window_start : terminator_index + 1].lower().strip()
-    if any(window.endswith(abbrev) for abbrev in _ABBREVIATIONS):
+    window_start = max(0, terminator_index - 20)
+    window = text[window_start : terminator_index + 1].strip()
+    window_lower = window.lower()
+
+    # Diccionario de abreviaturas conocidas
+    if any(window_lower.endswith(abbrev) for abbrev in _ABBREVIATIONS):
         return True
-    
-    # SEG-02: Iniciales sueltas ("A.", "j.") y listas enumeradas cortas ("1.", "20.")
-    # pero sin atrapar palabras al final de oración como "es." o "is."
-    if re.search(r"(^|\s)([a-záéíóúüñ]\.|[0-9]{1,3}\.)$", window):
+
+    # REAL-06: Siglas compuestas con puntos (U.S., U.K., E.U., EE.UU.)
+    if _COMPOUND_ABBREV_RE.search(window):
         return True
-        
+
+    # SEG-02: Iniciales sueltas ("A.") y numeración de listas ("1.", "12.")
+    # Se limita a un solo carácter o dígitos para no atrapar "es." / "is."
+    if re.search(r"(^|\s)([A-ZÁÉÍÓÚÜÑa-záéíóúüñ]\.|[0-9]{1,3}\.)$", window):
+        return True
+
     return False
 
 
@@ -225,12 +238,15 @@ def _flush_current(
     extraction = current_methods[0] if current_methods else None
     confidence = sum(current_confidences) / len(current_confidences) if current_confidences else None
 
-    # Retrieve document quality if available
+    # REAL-01: leer calidad del contrato real de DocumentQuality
     q_score = None
     q_basis = None
     if hasattr(doc, "quality") and doc.quality is not None:
-        q_score = doc.quality.overall_score
-        q_basis = doc.quality.basis
+        try:
+            q_score = doc.quality.confidence.score
+            q_basis = doc.quality.confidence.basis
+        except AttributeError:
+            pass
 
     return ChunkRecord(
         doc_id=doc.doc_id,
@@ -275,11 +291,13 @@ def chunk_documents(
     current_words = 0
     position = 0
     
-    pending_heading = None
+    # REAL-05: heading_text/heading_words se resetean tras ser incorporados al primer chunk
+    pending_heading: ContentBlock | None = None
+    pending_heading_words: int = 0
 
     for block in _iter_blocks_for_chunking(doc, root):
         if block.type == "heading":
-            # SEG-04: flush previous chunk before starting a new heading section
+            # Flush del chunk anterior antes de iniciar nueva sección
             if current_text:
                 chunk = _flush_current(
                     current_text, current_block_ids, current_block_types,
@@ -296,20 +314,21 @@ def chunk_documents(
                 current_methods.clear()
                 current_confidences.clear()
                 current_words = 0
-            
+
             pending_heading = block
+            pending_heading_words = _token_count(block.text.strip())
             continue
 
-        # SEG-01: split all types
+        # SEG-01: dividir todos los tipos de bloque por límite de oración
         units, oversize_units = _split_unit(block.text.strip(), max_words)
-
-        if oversize_units:
-            pass
 
         for unit in units:
             unit_words = _token_count(unit)
-            
-            # Flush if max_words exceeded
+
+            # REAL-03: calcular presupuesto reservando espacio para el heading pendiente
+            heading_budget = pending_heading_words if (pending_heading and not current_text) else 0
+
+            # Flush si el chunk actual ya no cabe (sin contar heading pendiente que aún no está)
             if current_text and current_words + unit_words > max_words:
                 chunk = _flush_current(
                     current_text, current_block_ids, current_block_types,
@@ -326,7 +345,10 @@ def chunk_documents(
                 current_methods.clear()
                 current_confidences.clear()
                 current_words = 0
-            
+                # REAL-03: recalcular budget tras flush
+                heading_budget = pending_heading_words if pending_heading else 0
+
+            # REAL-05: incorporar heading SOLO al primer chunk de la sección y resetearlo
             if not current_text and pending_heading:
                 current_text.append(pending_heading.text.strip())
                 current_block_ids.append(pending_heading.block_id)
@@ -335,7 +357,10 @@ def chunk_documents(
                     current_pages.append(pending_heading.page)
                 current_methods.append(pending_heading.extraction_method)
                 current_confidences.append(pending_heading.segmentation_confidence)
-                current_words += _token_count(pending_heading.text.strip())
+                current_words += pending_heading_words
+                # REAL-05: limpiar heading pendiente para que no se repita
+                pending_heading = None
+                pending_heading_words = 0
 
             current_text.append(unit)
             current_block_ids.append(block.block_id)
@@ -345,6 +370,17 @@ def chunk_documents(
             current_methods.append(block.extraction_method)
             current_confidences.append(block.segmentation_confidence)
             current_words += unit_words
+
+    # REAL-04: emitir heading terminal si el documento termina en un heading
+    if pending_heading and not current_text:
+        current_text.append(pending_heading.text.strip())
+        current_block_ids.append(pending_heading.block_id)
+        current_block_types.append(pending_heading.type)
+        if pending_heading.page is not None:
+            current_pages.append(pending_heading.page)
+        current_methods.append(pending_heading.extraction_method)
+        current_confidences.append(pending_heading.segmentation_confidence)
+        current_words += pending_heading_words
 
     chunk = _flush_current(
         current_text, current_block_ids, current_block_types,
