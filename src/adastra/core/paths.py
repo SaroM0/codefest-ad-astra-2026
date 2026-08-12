@@ -78,6 +78,18 @@ class ArtifactPaths:
     # Los consumen los scripts de revisión y las etapas siguientes; son la superficie
     # pública de la ingesta, así que se nombran una sola vez aquí.
     @property
+    def chunks(self) -> Path:
+        return self.chunking.root / "chunks.jsonl"
+
+    @property
+    def faiss_index(self) -> Path:
+        return self.embeddings.root / "index.faiss"
+
+    @property
+    def metadata_jsonl(self) -> Path:
+        return self.embeddings.root / "metadata.jsonl"    
+    
+    @property
     def documents(self) -> Path:
         return self.ingestion.root / "documents"
 
@@ -100,3 +112,7 @@ class ArtifactPaths:
     @property
     def summary(self) -> Path:
         return self.ingestion.reports / "summary.json"
+
+    @property
+    def entrega_encoder_bge(self) -> Path:
+        return self.root.parent / "entrega" / "base_vectorial" / "encoder_bge_m3"
