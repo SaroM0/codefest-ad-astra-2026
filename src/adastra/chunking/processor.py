@@ -1,12 +1,3 @@
-"""Chunking determinista para la etapa 2.
-
-La ingesta ya resolvió el formato, el orden de lectura, la calidad y la procedencia.
-Este módulo consume `CanonicalDocument` y produce fragmentos listos para embeddings,
-sin volver a tocar OCR, parsing ni limpieza destructiva.
-"""
-
-from __future__ import annotations
-
 import argparse
 import json
 import re
@@ -70,6 +61,11 @@ class ChunkRecord(BaseModel):
     source_language: str | None = None
     source_script: str | None = None
 
+    quality_score: float | None = None
+    quality_basis: str | None = None
+    extraction_method: str | None = None
+    segmentation_confidence: float | None = None
+
 
 @dataclass(frozen=True)
 class ChunkStats:
@@ -106,8 +102,12 @@ def _looks_like_abbreviation(text: str, terminator_index: int) -> bool:
     window = text[window_start : terminator_index + 1].lower().strip()
     if any(window.endswith(abbrev) for abbrev in _ABBREVIATIONS):
         return True
-    if re.search(r"([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{1,3}\.)$", window):
+    
+    # SEG-02: Iniciales sueltas ("A.", "j.") y listas enumeradas cortas ("1.", "20.")
+    # pero sin atrapar palabras al final de oración como "es." o "is."
+    if re.search(r"(^|\s)([a-záéíóúüñ]\.|[0-9]{1,3}\.)$", window):
         return True
+        
     return False
 
 
@@ -196,7 +196,8 @@ def _iter_blocks_for_chunking(
     for block in iter_blocks(doc, paths):
         if not block.text.strip():
             continue
-        if block.is_boilerplate and block.type != "heading":
+        # SEG-03: No descartar todo boilerplate. Sólo page_text
+        if block.is_boilerplate and block.type == "page_text":
             continue
         yield block
 
@@ -206,6 +207,8 @@ def _flush_current(
     current_block_ids: list[str],
     current_block_types: list[str],
     current_pages: list[int],
+    current_methods: list[str],
+    current_confidences: list[float],
     doc: CanonicalDocument,
     position: int,
 ) -> ChunkRecord | None:
@@ -218,6 +221,17 @@ def _flush_current(
 
     page_start = min(current_pages) if current_pages else None
     page_end = max(current_pages) if current_pages else None
+    
+    extraction = current_methods[0] if current_methods else None
+    confidence = sum(current_confidences) / len(current_confidences) if current_confidences else None
+
+    # Retrieve document quality if available
+    q_score = None
+    q_basis = None
+    if hasattr(doc, "quality") and doc.quality is not None:
+        q_score = doc.quality.overall_score
+        q_basis = doc.quality.basis
+
     return ChunkRecord(
         doc_id=doc.doc_id,
         chunk_id=f"{doc.doc_id}-chunk-{position:04d}",
@@ -233,6 +247,10 @@ def _flush_current(
         page_end=page_end,
         source_language=doc.source.language,
         source_script=doc.source.dominant_script,
+        quality_score=q_score,
+        quality_basis=q_basis,
+        extraction_method=extraction,
+        segmentation_confidence=confidence,
     )
 
 
@@ -252,55 +270,86 @@ def chunk_documents(
     current_block_ids: list[str] = []
     current_block_types: list[str] = []
     current_pages: list[int] = []
+    current_methods: list[str] = []
+    current_confidences: list[float] = []
     current_words = 0
     position = 0
+    
+    pending_heading = None
 
     for block in _iter_blocks_for_chunking(doc, root):
-        if block.type in {"heading", "list_item", "table_row", "table_text", "caption"}:
-            units = [block.text.strip()]
-            oversize_units = 0
-        else:
-            units, oversize_units = _split_unit(block.text.strip(), max_words)
-
-        if oversize_units:
-            # Se conserva la unidad completa aunque exceda el presupuesto.
-            # El reto prohíbe cortar oraciones; esta excepción queda reflejada en `num_tokens`.
-            pass
-
-        for unit in units:
-            unit_words = _token_count(unit)
-            if current_text and current_words + unit_words > max_words:
+        if block.type == "heading":
+            # SEG-04: flush previous chunk before starting a new heading section
+            if current_text:
                 chunk = _flush_current(
-                    current_text,
-                    current_block_ids,
-                    current_block_types,
-                    current_pages,
-                    doc,
-                    position,
+                    current_text, current_block_ids, current_block_types,
+                    current_pages, current_methods, current_confidences,
+                    doc, position
                 )
                 if chunk is not None:
                     yield chunk
                     position += 1
-                current_text = []
-                current_block_ids = []
-                current_block_types = []
-                current_pages = []
+                current_text.clear()
+                current_block_ids.clear()
+                current_block_types.clear()
+                current_pages.clear()
+                current_methods.clear()
+                current_confidences.clear()
                 current_words = 0
+            
+            pending_heading = block
+            continue
+
+        # SEG-01: split all types
+        units, oversize_units = _split_unit(block.text.strip(), max_words)
+
+        if oversize_units:
+            pass
+
+        for unit in units:
+            unit_words = _token_count(unit)
+            
+            # Flush if max_words exceeded
+            if current_text and current_words + unit_words > max_words:
+                chunk = _flush_current(
+                    current_text, current_block_ids, current_block_types,
+                    current_pages, current_methods, current_confidences,
+                    doc, position
+                )
+                if chunk is not None:
+                    yield chunk
+                    position += 1
+                current_text.clear()
+                current_block_ids.clear()
+                current_block_types.clear()
+                current_pages.clear()
+                current_methods.clear()
+                current_confidences.clear()
+                current_words = 0
+            
+            if not current_text and pending_heading:
+                current_text.append(pending_heading.text.strip())
+                current_block_ids.append(pending_heading.block_id)
+                current_block_types.append(pending_heading.type)
+                if pending_heading.page is not None:
+                    current_pages.append(pending_heading.page)
+                current_methods.append(pending_heading.extraction_method)
+                current_confidences.append(pending_heading.segmentation_confidence)
+                current_words += _token_count(pending_heading.text.strip())
 
             current_text.append(unit)
             current_block_ids.append(block.block_id)
             current_block_types.append(block.type)
             if block.page is not None:
                 current_pages.append(block.page)
+            current_methods.append(block.extraction_method)
+            current_confidences.append(block.segmentation_confidence)
             current_words += unit_words
 
     chunk = _flush_current(
-        current_text,
-        current_block_ids,
-        current_block_types,
-        current_pages,
-        doc,
-        position,
+        current_text, current_block_ids, current_block_types,
+        current_pages, current_methods, current_confidences,
+        doc, position
     )
     if chunk is not None:
         yield chunk
@@ -325,8 +374,12 @@ def build_chunks(
     stats = ChunkStats()
     chunks_path = paths.chunking.root / "chunks.jsonl"
     metadata_path = paths.chunking.root / "metadata.jsonl"
+    
+    # Escribir a archivos temporales y renombrar al final
+    chunks_tmp = chunks_path.with_suffix(".tmp")
+    metadata_tmp = metadata_path.with_suffix(".tmp")
 
-    with chunks_path.open("w", encoding="utf-8") as chunks_handle, metadata_path.open(
+    with chunks_tmp.open("w", encoding="utf-8") as chunks_handle, metadata_tmp.open(
         "w", encoding="utf-8"
     ) as metadata_handle:
         for index, doc in enumerate(iter_documents(paths)):
@@ -355,6 +408,9 @@ def build_chunks(
                 stats = replace(stats, oversize_units=stats.oversize_units + oversize_units)
             else:
                 stats = replace(stats, documents_empty=stats.documents_empty + 1)
+
+    chunks_tmp.replace(chunks_path)
+    metadata_tmp.replace(metadata_path)
 
     summary = {
         "artifacts_root": str(paths.root),
