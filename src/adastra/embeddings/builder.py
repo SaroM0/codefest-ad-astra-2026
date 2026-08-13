@@ -1,5 +1,7 @@
 import os
 import json
+from pathlib import Path
+
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
