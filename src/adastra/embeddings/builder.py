@@ -1,3 +1,4 @@
+import os
 import json
 import faiss
 import numpy as np
@@ -36,6 +37,15 @@ def build_vector_index() -> None:
     chunks = list(read_jsonl(chunks_file))
     
     validate_chunk_metadata(chunks)
+    
+    limit_env = os.environ.get("LIMIT_EMBEDDINGS")
+    if limit_env:
+        try:
+            limit_val = int(limit_env)
+            print(f"LIMIT_EMBEDDINGS detectado: limitando a los primeros {limit_val} chunks para pruebas.")
+            chunks = chunks[:limit_val]
+        except ValueError:
+            print(f"Advertencia: LIMIT_EMBEDDINGS '{limit_env}' no es un entero válido.")
     
     texts = [c["texto"] for c in chunks]
     
