@@ -68,3 +68,7 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/settings.json
+
+
+*.jsonl
+*.json

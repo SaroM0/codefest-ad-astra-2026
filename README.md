@@ -8,35 +8,145 @@ y no sabe nada de cómo se produjo:
 
 ```
 corpus crudo → INGESTA → CHUNKING → EMBEDDINGS → RETRIEVAL → respuesta + cita
-                  ✅         ⬜           ⬜           ⬜
+                  ✅         ✅           ✅           ⬜
 ```
 
 | Etapa | Código | Entrada → salida | Estado |
 |---|---|---|---|
 | 1 · Ingesta | [`src/adastra/ingestion/`](src/adastra/ingestion/) | corpus → `CanonicalDocument[]` | ✅ [arquitectura](docs/ARCHITECTURE_INGESTION.md) |
-| 2 · Chunking | [`src/adastra/chunking/`](src/adastra/chunking/) | `CanonicalDocument[]` → `Chunk[]` | ⬜ pendiente |
-| 3 · Embeddings | [`src/adastra/embeddings/`](src/adastra/embeddings/) | `Chunk[]` → vectores + índice | ⬜ pendiente |
+| 2 · Chunking | [`src/adastra/chunking/`](src/adastra/chunking/) | `CanonicalDocument[]` → `Chunk[]` | ✅ CLI disponible |
+| 3 · Embeddings | [`src/adastra/embeddings/`](src/adastra/embeddings/) | `Chunk[]` → BGE-M3 → FAISS | ✅ CLI disponible |
 | 4 · Retrieval | [`src/adastra/retrieval/`](src/adastra/retrieval/) | pregunta → chunks + cita | ⬜ pendiente |
 
 ---
 
-## Arranque
+## Instalación
 
 ```bash
-make setup        # venv de Python 3.11 + dependencias (requiere uv)
+make setup        # venv de Python 3.11/3.12 + dependencias base (requiere uv)
 make ocr          # opcional: motor OCR, sin sudo
 make check-env    # ¿están poppler, el venv y el corpus?
 make              # todos los objetivos disponibles
+
+# dependencias de BGE-M3 y FAISS para embeddings
+.venv/bin/python -m pip install -e '.[embeddings]'
 ```
 
 El **corpus no está en el repositorio** (3 GB). Se coloca descomprimido en la raíz como
-`CORPUS CODEFEST AD ASTRA 2026/`, o se apunta a otra ruta:
+`CORPUS CODEFEST AD ASTRA 2026/`, o se pasa su ruta al objetivo de `make`:
 
 ```bash
-export CODEFEST_CORPUS=/ruta/al/corpus
+make CORPUS="/ruta/al/CORPUS CODEFEST AD ASTRA 2026" ingest-fast
 ```
 
 Requisito de sistema: `sudo apt install poppler-utils`.
+
+## Flujo de ejecución
+
+Cada etapa consume los artefactos de la anterior. Nunca se indexa
+`<artifacts>/evaluation/`: contiene el gold set y las consultas de evaluación.
+
+### 1. Ingesta
+
+Con el corpus crudo, ejecuta una ingesta rápida sin OCR o la corrida completa:
+
+```bash
+make CORPUS="/ruta/al/CORPUS CODEFEST AD ASTRA 2026" ingest-fast
+make CORPUS="/ruta/al/CORPUS CODEFEST AD ASTRA 2026" ingest
+make check
+```
+
+La salida es `artifacts/ingestion/documents/`, formada por documentos canónicos y sus
+bloques. Si no se dispone del corpus original, el repositorio conserva una ingesta
+reutilizable en `docs/artifacts/ingestion/` con 1.731 documentos canónicos.
+
+### 2. Chunking
+
+El chunker lee los documentos canónicos, resuelve automáticamente `blocks_ref` y escribe
+los JSONL de manera atómica. Para trabajar con la ingesta reutilizable:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m adastra.chunking \
+   --artifacts docs/artifacts \
+   --max-words 220 \
+   --strict
+```
+
+Para una corrida propia sustituye `docs/artifacts` por `artifacts`:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m adastra.chunking \
+   --artifacts artifacts \
+   --max-words 220 \
+   --strict
+```
+
+La etapa produce:
+
+```text
+<artifacts>/chunking/
+├── chunks.jsonl
+├── metadata.jsonl
+└── reports/summary.json
+```
+
+La corrida disponible en `docs/artifacts` genera **137.578 chunks**, todos con un máximo
+de 220 tokens heurísticos.
+
+### 3. Embeddings y FAISS
+
+La indexación utiliza el encoder multilingüe público `BAAI/bge-m3` mediante
+`FlagEmbedding.BGEM3FlagModel`. Genera vectores densos `dense_vecs` de **1.024
+dimensiones** (`float32`), los normaliza con L2 y los inserta en `faiss.IndexFlatIP`.
+Así, el producto interno de FAISS equivale a similitud coseno.
+
+Ejecuta una prueba corta antes de indexar todo el corpus:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/embeddings/build.py \
+   --artifacts docs/artifacts \
+   --model BAAI/bge-m3 \
+   --batch-size 64 \
+   --limit 64 \
+   --no-delivery-copy
+```
+
+Para generar el índice completo:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/embeddings/build.py \
+   --artifacts docs/artifacts \
+   --model BAAI/bge-m3 \
+   --batch-size 64
+```
+
+La primera ejecución descarga el modelo de Hugging Face. En CPU la corrida completa tarda
+varias horas; si CUDA está disponible, el builder activa FP16 automáticamente. El proceso
+es atómico: no publica un índice parcial si falla o se interrumpe.
+
+Al finalizar se generan:
+
+```text
+<artifacts>/embeddings/
+├── index.faiss
+├── metadata.jsonl
+└── reports/manifest.json
+```
+
+`manifest.json` registra el modelo, revisión, dimensión, pooling, normalización,
+dispositivo, límites y versiones de dependencias para reproducir la corrida.
+
+### 4. Retrieval
+
+Retrieval debe codificar las consultas con el **mismo BGE-M3**, el mismo pooling
+`dense_vecs` y la misma normalización L2. La invariante del índice es:
+
+```text
+FAISS ID i ↔ línea i (empezando en 0) de metadata.jsonl
+```
+
+Consulta el contrato técnico y el ejemplo de carga/búsqueda en
+[`docs/EMBEDDINGS_RETRIEVAL_CONTRACT.md`](docs/EMBEDDINGS_RETRIEVAL_CONTRACT.md).
 
 ## Cómo está organizado
 
@@ -84,8 +194,8 @@ el corpus, es un bug del pipeline, no un fichero que versionar.
 ```
 artifacts/
 ├── ingestion/    documents · reports · quarantine · cache · registry · manifest
-├── chunking/     ⬜
-├── embeddings/   ⬜
+├── chunking/     chunks.jsonl · metadata.jsonl · reports
+├── embeddings/   index.faiss · metadata.jsonl · reports/manifest.json
 ├── retrieval/    ⬜
 └── evaluation/   gold set y preguntas — FUERA de las etapas (invariante I10)
 ```
@@ -113,10 +223,10 @@ Reproducible con `make ingest && make check`. Detalle completo en
 
 ## Documentación
 
-[`docs/ARCHITECTURE_INGESTION.md`](docs/ARCHITECTURE_INGESTION.md) — la arquitectura real
-de la etapa 1, escrita desde el código y verificada contra los artefactos: el corpus en
-cifras, el flujo, cada parser, cómo se mide la calidad, las 11 invariantes, qué está
-implementado pero desconectado y qué hereda la etapa siguiente.
+- [`docs/ARCHITECTURE_INGESTION.md`](docs/ARCHITECTURE_INGESTION.md): arquitectura real
+   de la ingesta, parsers, calidad e invariantes.
+- [`docs/EMBEDDINGS_RETRIEVAL_CONTRACT.md`](docs/EMBEDDINGS_RETRIEVAL_CONTRACT.md):
+   modelo BGE-M3, dimensión, normalización, contrato FAISS↔metadata y ejemplo de retrieval.
 
 Es el único documento de diseño del repositorio. Los planes previos (`PLAN.md`,
 `PLAN_INGESTA.md`, `ANALISIS_PLAN.md`, `ANALISIS_CORPUS.md`) se eliminaron: varios estaban
